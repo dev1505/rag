@@ -1,26 +1,19 @@
-from fastapi import APIRouter, FastAPI
+from fastapi import APIRouter, FastAPI, UploadFile, File, Depends
 from contextlib import asynccontextmanager
-from supabase import create_client, Client, ClientOptions
-from dotenv import load_dotenv
-import os
+from serilalizers import *
+from services.file_services import *
+from dependencies import *
 
 load_dotenv()
 
 my_resources = {}
-
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
-
-supabase: Client = create_client(
-    SUPABASE_URL,
-    SUPABASE_ANON_KEY,
-)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("Application starting up...")
     my_resources["database_connection"] = "connected_to_database"
+    database()
     print("Database connection established.")
     yield
     print("Application shutting down...")
@@ -33,18 +26,21 @@ app = FastAPI(lifespan=lifespan)
 router = APIRouter()
 
 
-# @router.get("/first")
-# def first():
-#     try:
-#         # response = supabase.table("timpass").select("*").execute()
-#         print("Response:", response)
-#         return {"data": response.data}
-#     except Exception as e:
-#         print("Error:", e)
-#         return {"error": str(e)}
+@router.post("/upload/file", response_model=Upload_File_Serializer)
+def upload_file(file: UploadFile = File(...)):
+    return File_Services.upload_file(file=file)
+
 
 @router.get("/first")
-def first():
-    return {"data":"data",}
+def first(db=Depends(database)):
+    return {
+        "data": db.table("questions").select("*").execute(),
+    }
+
+
+@router.post("/ask")
+def ask_question(data: Input_Question_Serializer, db=Depends(database)):
+    return File_Services.ask_question(data=data, db=db)
+
 
 app.include_router(router)
