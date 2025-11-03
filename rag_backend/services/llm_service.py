@@ -1,6 +1,7 @@
 import os
 from dotenv import load_dotenv
 import google.generativeai as genai
+import json
 
 load_dotenv()
 
@@ -9,12 +10,10 @@ genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel("gemini-2.5-flash")
 
 
-class Llm_Service:
+class LlmService:
     @staticmethod
-    def generate_blog(prompt):
-        response_from_ai = model.generate_content(prompt)
-        # user_cost = (
-        #     response_from_ai.usage_metadata.prompt_token_count * 0.3 / 1000000
-        #     + response_from_ai.usage_metadata.candidates_token_count * 3 / 1000000
-        # )
-        return response_from_ai.text
+    def generate_stream(prompt: str):
+        stream = model.generate_content(prompt, stream=True)
+        for chunk in stream:
+            if chunk and hasattr(chunk, "text") and chunk.text:
+                yield json.dumps({"text": chunk.text}) + "\n"

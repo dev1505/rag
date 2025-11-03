@@ -3,6 +3,7 @@ from supabase import create_client, Client
 from dotenv import load_dotenv
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qmodels
+from fastapi import Request, HTTPException, Depends
 
 load_dotenv()
 
@@ -58,6 +59,24 @@ def vector_database():
         else:
             raise e
     return _vdb
+
+
+def verify_token(request: Request, db=Depends(database)):
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(
+            status_code=401, detail="Authorization header missing or invalid"
+        )
+    token = auth_header.split(" ")[1]
+    try:
+        user = db.auth.get_user(token)
+        if not user or not user.user:
+            raise HTTPException(status_code=401, detail="Invalid or expired token")
+        return user.uid
+    except Exception as e:
+        raise HTTPException(
+            status_code=401, detail=f"Token verification failed: {str(e)}"
+        )
 
 
 def storage():

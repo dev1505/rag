@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from serilalizers import *
 from services.file_services import *
 from dependencies import *
+from fastapi.responses import StreamingResponse
 
 load_dotenv()
 
@@ -79,10 +80,31 @@ def get_user_context(
 
 
 @router.post("/ask")
-def ask_question(data=Generate_Content_Serializer, vdb=Depends(vector_database)):
-    return File_Services.generate_from_context(
-        vdb=vdb, question=data.question, file_names=data.file_names
-    )
+def ask_question(
+    data: Generate_Content_Serializer,
+    vdb=Depends(vector_database),
+    db=Depends(database),
+):
+    # stream = File_Services.generate_from_context(
+    #     vdb=vdb,
+    #     question=data.question,
+    #     file_names=data.file_names,
+    #     db=db,
+    # )
+
+    stream = LlmService.generate_stream(prompt=data.question)
+    return StreamingResponse(stream, media_type="application/json")
+
+
+@router.post("/get/user/history")
+def get_user_history(db=Depends(database), user_id=Depends(verify_token)):
+    return File_Services.get_user_history(user_id=user_id, db=db)
+
+
+@router.get("/get")
+def get():
+    for i in range(5):
+        yield {"data": i}
 
 
 app.include_router(router)

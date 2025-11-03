@@ -7,7 +7,7 @@ import os
 from qdrant_client.http import models as qmodels
 from parsers import *
 from qdrant_client import QdrantClient
-import numpy as np
+from fastapi.responses import StreamingResponse
 import uuid
 from services.llm_service import *
 
@@ -77,10 +77,23 @@ class File_Services:
     def query_embedding(text):
         embeddings = TextEmbedding().embed([text])
         return list(embeddings)[0].tolist()
-    
-    # @staticmethod
-    # def insert_question(question):
-    #     res
+
+    @staticmethod
+    def insert_question(db, question):
+        response = safe_supabase_database_action(
+            lambda: db.table("questions").insert({"question": question}).execute()
+        )
+        return response
+
+    @staticmethod
+    def insert_response(db, question_id, response):
+        response = safe_supabase_database_action(
+            lambda: db.table("questions")
+            .update({"response": response})
+            .eq("id", question_id)
+            .execute()
+        )
+        return response
 
     @staticmethod
     def get_user_single_doc_public_path(db, document_id, store):
@@ -185,17 +198,43 @@ class File_Services:
         return contexts
 
     @staticmethod
-    def generate_from_context(vdb, question, file_names):
-        if file_names:
-            vdb_context = File_Services.vector_db_semantic_search(
-                vdb=vdb, question=question, file_names=file_names
-            )
-            context = f"question: {question}, context: " + "\n\n".join(
-                [r["text"] for r in vdb_context[:3]]
-            )
+    def generate_from_context(vdb, db, question, file_names):
+        question_response = File_Services.insert_question(db=db, question=question)
+        if question_response["success"]:
+            if file_names:
+                vdb_context = File_Services.vector_db_semantic_search(
+                    vdb=vdb, question=question, file_names=file_names
+                )
+                context = f"question: {question}, context: " + "\n\n".join(
+                    [r["text"] for r in vdb_context[:3]]
+                )
+            else:
+                context = question
+                llm_response_stream = Llm_Service.generate_blog(prompt=context)
+                print(llm_response_stream)
+                # question_response = File_Services.insert_question(
+                #     db=db, question=question
+                # )
+                # response_insertion = File_Services.insert_response(
+                #     question_id=question_response["data"][0]["id"],
+                #     response=llm_response,
+                #     db=db,
+                # )
+                # if response_insertion["success"]:
+                return {
+                    "data": llm_response_stream,
+                    "success": True,
+                }
+                # else:
+                #     return {
+                #         "data": "Your response was not stored",
+                #         "success": False,
+                #     }
         else:
-            context = question
-        return Llm_Service.generate_blog(prompt=context)
+            return {
+                "data": "Error inserting data",
+                "success": False,
+            }
 
     @staticmethod
     async def upload_single_file(db, vdb, store, file: UploadFile = File(...)):
@@ -207,7 +246,6 @@ class File_Services:
         )
         if parsing["success"]:
             embeddings, chunks = File_Services.chunk_to_embeddings(text=parsing["data"])
-            print(embeddings)
             store_embeddings_response = File_Services.store_embeddings(
                 embeddings=embeddings,
                 file_name=file_name,
@@ -269,3 +307,10 @@ class File_Services:
             "data": "files uploaded successfully",
             "success": True,
         }
+
+    @staticmethod
+    def get_user_history(db, user_id):
+        user_history = safe_supabase_database_action(
+            lambda: db.table("questions").select("*").eq("user_id", user_id).execute()
+        )
+        return user_history
