@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 
 
@@ -13,6 +13,11 @@ class Upload_File_Serializer(BaseModel):
 class Input_Question_Serializer(BaseModel):
     question: str
     # user_id: Optional[str] = None
+
+
+class Generate_Content_Serializer(BaseModel):
+    question: str
+    file_names: List[str] = None
 
 
 class Output_Response_Serializer(BaseModel):
