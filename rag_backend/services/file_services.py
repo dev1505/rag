@@ -7,7 +7,6 @@ import os
 from qdrant_client.http import models as qmodels
 from parsers import *
 from qdrant_client import QdrantClient
-from fastapi.responses import StreamingResponse
 import uuid
 from services.llm_service import *
 
@@ -109,12 +108,9 @@ class File_Services:
         return path
 
     @staticmethod
-    def get_user_multiple_docs_public_path(db, question_id, store):
+    def get_user_multiple_docs_public_path(db, user_id, store):
         database_response = safe_supabase_database_action(
-            lambda: db.table("documents")
-            .select("*")
-            .eq("question", question_id)
-            .execute()
+            lambda: db.table("documents").select("*").eq("user_id", user_id).execute()
         )
         path = []
         for docs in database_response["data"]:
@@ -166,6 +162,11 @@ class File_Services:
                 "data": Parsers.image_parser_from_upload(image_bytes=file_bytes),
                 "success": True,
             }
+        elif mime_type == "text/plain":
+            return {
+                "data": (file_bytes).decode("utf-8"),
+                "success": True,
+            }
         else:
             return {
                 "data": "File of this type is not supported",
@@ -173,8 +174,9 @@ class File_Services:
             }
 
     @staticmethod
-    def vector_db_semantic_search(vdb, question, file_names):
+    def vector_db_semantic_search(vdb, question: str, file_names: List[str]):
         embeddings = File_Services.query_embedding(text=question)
+        print(file_names)
         filter_condition = qmodels.Filter(
             must=[
                 qmodels.FieldCondition(
@@ -210,26 +212,23 @@ class File_Services:
                 )
             else:
                 context = question
-                llm_response_stream = Llm_Service.generate_blog(prompt=context)
-                print(llm_response_stream)
-                # question_response = File_Services.insert_question(
-                #     db=db, question=question
-                # )
-                # response_insertion = File_Services.insert_response(
-                #     question_id=question_response["data"][0]["id"],
-                #     response=llm_response,
-                #     db=db,
-                # )
-                # if response_insertion["success"]:
+            llm_response = LlmService.generate_blog(prompt=context)
+            question_response = File_Services.insert_question(db=db, question=question)
+            response_insertion = File_Services.insert_response(
+                question_id=question_response["data"][0]["id"],
+                response=llm_response,
+                db=db,
+            )
+            if response_insertion["success"]:
                 return {
-                    "data": llm_response_stream,
+                    "data": llm_response,
                     "success": True,
                 }
-                # else:
-                #     return {
-                #         "data": "Your response was not stored",
-                #         "success": False,
-                #     }
+            else:
+                return {
+                    "data": "Your response was not stored",
+                    "success": False,
+                }
         else:
             return {
                 "data": "Error inserting data",
@@ -242,7 +241,8 @@ class File_Services:
         file_name = file.filename
         mime_type = file.content_type
         parsing = File_Services.parse_uploaded_docs(
-            mime_type=mime_type, file_bytes=file_bytes
+            mime_type=mime_type,
+            file_bytes=file_bytes,
         )
         if parsing["success"]:
             embeddings, chunks = File_Services.chunk_to_embeddings(text=parsing["data"])
@@ -314,3 +314,10 @@ class File_Services:
             lambda: db.table("questions").select("*").eq("user_id", user_id).execute()
         )
         return user_history
+
+    @staticmethod
+    def get_user_docs(db, user_id):
+        user_docs = safe_supabase_database_action(
+            lambda: db.table("documents").select("*").eq("user_id", user_id).execute()
+        )
+        return user_docs

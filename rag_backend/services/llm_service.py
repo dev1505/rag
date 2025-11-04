@@ -1,7 +1,6 @@
 import os
 from dotenv import load_dotenv
 import google.generativeai as genai
-import json
 
 load_dotenv()
 
@@ -13,7 +12,5 @@ model = genai.GenerativeModel("gemini-2.5-flash")
 class LlmService:
     @staticmethod
     def generate_stream(prompt: str):
-        stream = model.generate_content(prompt, stream=True)
-        for chunk in stream:
-            if chunk and hasattr(chunk, "text") and chunk.text:
-                yield json.dumps({"text": chunk.text}) + "\n"
+        llm_response = model.generate_content(prompt)
+        return llm_response.text

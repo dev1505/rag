@@ -1,9 +1,9 @@
-from fastapi import APIRouter, FastAPI, UploadFile, File, Depends
+from fastapi import APIRouter, FastAPI, UploadFile, File, Depends, Request
 from contextlib import asynccontextmanager
 from serilalizers import *
 from services.file_services import *
 from dependencies import *
-from fastapi.responses import StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
 
 load_dotenv()
 
@@ -29,6 +29,19 @@ app = FastAPI(lifespan=lifespan)
 router = APIRouter()
 
 
+origins = [
+    "https://paranormal-spooky-troll-574v57x5w4r2w4x-8080.app.github.dev",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
 @router.post("/get/user/single/doc")
 def get_user_single_doc_public_path(
     document_id: int, store=Depends(storage), db=Depends(database)
@@ -40,10 +53,10 @@ def get_user_single_doc_public_path(
 
 @router.post("/get/user/mulitple/docs")
 def get_user_multiple_docs_public_path(
-    question_id: int, store=Depends(storage), db=Depends(database)
+    store=Depends(storage), db=Depends(database), user_id=Depends(verify_token)
 ):
     return File_Services.get_user_multiple_docs_public_path(
-        question_id=question_id, store=store, db=db
+        user_id=user_id, store=store, db=db
     )
 
 
@@ -85,20 +98,28 @@ def ask_question(
     vdb=Depends(vector_database),
     db=Depends(database),
 ):
-    # stream = File_Services.generate_from_context(
-    #     vdb=vdb,
-    #     question=data.question,
-    #     file_names=data.file_names,
-    #     db=db,
-    # )
-
-    stream = LlmService.generate_stream(prompt=data.question)
-    return StreamingResponse(stream, media_type="application/json")
+    response = File_Services.generate_from_context(
+        vdb=vdb,
+        question=data.question,
+        file_names=data.file_names,
+        db=db,
+    )
+    return response
 
 
 @router.post("/get/user/history")
 def get_user_history(db=Depends(database), user_id=Depends(verify_token)):
     return File_Services.get_user_history(user_id=user_id, db=db)
+
+
+@router.post("/get/user/docs")
+def get_user_docs(db=Depends(database), user_id=Depends(verify_token)):
+    return File_Services.get_user_docs(user_id=user_id, db=db)
+
+
+@router.get("/get/user/details")
+def get_user_details(request: Request, db=Depends(database)):
+    return verify_token(db=db, request=request)
 
 
 @router.get("/get")

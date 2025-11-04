@@ -52,6 +52,11 @@ def vector_database():
                 ef_construct=100,
             ),
         )
+        _vdb.create_payload_index(
+            collection_name="user_docs",
+            field_name="file_name",
+            field_schema=qmodels.PayloadSchemaType.KEYWORD,
+        )
         print("✅ Qdrant collection created.")
     except UnexpectedResponse as e:
         if "already exists" in str(e):
@@ -69,10 +74,19 @@ def verify_token(request: Request, db=Depends(database)):
         )
     token = auth_header.split(" ")[1]
     try:
-        user = db.auth.get_user(token)
-        if not user or not user.user:
+        response = db.auth.get_user(token)
+        user_data = response.user
+        if not user_data:
             raise HTTPException(status_code=401, detail="Invalid or expired token")
-        return user.uid
+        return {
+            "id": user_data.id,
+            "email": user_data.email,
+            "role": user_data.role,
+            "app_metadata": user_data.app_metadata,
+            "user_metadata": user_data.user_metadata,
+            "created_at": user_data.created_at,
+            "aud": user_data.aud,
+        }
     except Exception as e:
         raise HTTPException(
             status_code=401, detail=f"Token verification failed: {str(e)}"
