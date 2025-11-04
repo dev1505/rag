@@ -1,6 +1,7 @@
 import os
-from dotenv import load_dotenv
+
 import google.generativeai as genai
+from dotenv import load_dotenv
 
 load_dotenv()
 
@@ -11,6 +12,6 @@ model = genai.GenerativeModel("gemini-2.5-flash")
 
 class LlmService:
     @staticmethod
-    def generate_stream(prompt: str):
+    def generate_blog(prompt: str):
         llm_response = model.generate_content(prompt)
         return llm_response.text

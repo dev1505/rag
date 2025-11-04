@@ -1,14 +1,16 @@
-from fastapi import HTTPException, FastAPI, UploadFile, File
-from serilalizers import *
-from datetime import datetime
-from typing import Callable, Any, Dict, List
-from fastembed import TextEmbedding
 import os
-from qdrant_client.http import models as qmodels
+import uuid
+from datetime import datetime
+from typing import Any, Callable, Dict, List
+
+from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastembed import TextEmbedding
 from parsers import *
 from qdrant_client import QdrantClient
-import uuid
+from qdrant_client.http import models as qmodels
+from serilalizers import *
 from services.llm_service import *
+
 
 qdrant_client = QdrantClient(
     url="https://d03eed59-6786-4359-8a9d-2efdb3676ea0.eu-west-1-0.aws.cloud.qdrant.io:6333",
@@ -78,9 +80,16 @@ class File_Services:
         return list(embeddings)[0].tolist()
 
     @staticmethod
-    def insert_question(db, question):
+    def insert_question(db, question, user_id):
         response = safe_supabase_database_action(
-            lambda: db.table("questions").insert({"question": question}).execute()
+            lambda: db.table("questions")
+            .insert(
+                {
+                    "question": question,
+                    "user_id": user_id,
+                }
+            )
+            .execute()
         )
         return response
 
@@ -200,8 +209,10 @@ class File_Services:
         return contexts
 
     @staticmethod
-    def generate_from_context(vdb, db, question, file_names):
-        question_response = File_Services.insert_question(db=db, question=question)
+    def generate_from_context(vdb, db, question, file_names, user_id):
+        question_response = File_Services.insert_question(
+            db=db, question=question, user_id=user_id
+        )
         if question_response["success"]:
             if file_names:
                 vdb_context = File_Services.vector_db_semantic_search(
@@ -213,7 +224,9 @@ class File_Services:
             else:
                 context = question
             llm_response = LlmService.generate_blog(prompt=context)
-            question_response = File_Services.insert_question(db=db, question=question)
+            question_response = File_Services.insert_question(
+                db=db, question=question, user_id=user_id
+            )
             response_insertion = File_Services.insert_response(
                 question_id=question_response["data"][0]["id"],
                 response=llm_response,
@@ -236,7 +249,13 @@ class File_Services:
             }
 
     @staticmethod
-    async def upload_single_file(db, vdb, store, file: UploadFile = File(...)):
+    async def upload_single_file(
+        db,
+        vdb,
+        store,
+        user_id,
+        file: UploadFile = File(...),
+    ):
         file_bytes = await file.read()
         file_name = file.filename
         mime_type = file.content_type
@@ -256,7 +275,13 @@ class File_Services:
                 print("✅ Embeddings stored successfully!")
                 database_response = safe_supabase_database_action(
                     lambda: db.table("documents")
-                    .insert({"doc_name": file_name})
+                    .insert(
+                        {
+                            "doc_name": file_name,
+                            "user_id": user_id,
+                            "doc_size": round(len(file_bytes) / 1024, 2),
+                        }
+                    )
                     .execute()
                 )
                 file_id = str(database_response["data"][0]["id"])
@@ -279,7 +304,7 @@ class File_Services:
                     "success": False,
                 }
         else:
-            print(f"❌ {parsing["data"]}")
+            print(f"❌ {parsing['data']}")
             return {
                 "data": parsing["data"],
                 "success": False,
@@ -287,7 +312,11 @@ class File_Services:
 
     @staticmethod
     async def upload_multiple_files(
-        db, vdb, store, files: List[UploadFile] = File(...)
+        db,
+        vdb,
+        user_id,
+        store,
+        files: List[UploadFile] = File(...),
     ):
         for file in files:
             storage_response = await File_Services.upload_single_file(
@@ -295,6 +324,7 @@ class File_Services:
                 store=store,
                 file=file,
                 vdb=vdb,
+                user_id=user_id,
             )
             if storage_response["success"]:
                 continue
@@ -307,6 +337,23 @@ class File_Services:
             "data": "files uploaded successfully",
             "success": True,
         }
+
+    @staticmethod
+    def delete_file(db, user_id, doc_id):
+        db_response = (
+            db.table("documents")
+            .delete()
+            .in_("id", doc_id)
+            .eq("user_id", user_id)
+            .execute()
+        )
+        if db_response["success"]:
+            storage_response = safe_supabase_storage_action(
+                lambda: db.storage.from_("user_docs").remove([str(doc_id)])
+            )
+        else:
+            return db_response
+        return storage_response
 
     @staticmethod
     def get_user_history(db, user_id):
