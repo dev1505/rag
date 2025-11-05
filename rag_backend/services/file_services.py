@@ -133,21 +133,30 @@ class File_Services:
 
     @staticmethod
     def store_embeddings(chunks, embeddings, vdb, file_name):
-        vector_db_response = vdb.upsert(
-            collection_name="user_docs",
-            points=[
-                qmodels.PointStruct(
-                    id=str(uuid.uuid4()),
-                    vector=embedd,
-                    payload={
-                        "file_name": file_name,
-                        "text": chunk,
-                    },
-                )
-                for chunk, embedd in zip(chunks, embeddings)
-            ],
-        )
-        return vector_db_response
+        if embeddings:
+            vector_db_response = vdb.upsert(
+                collection_name="user_docs",
+                points=[
+                    qmodels.PointStruct(
+                        id=str(uuid.uuid4()),
+                        vector=embedd,
+                        payload={
+                            "file_name": file_name,
+                            "text": chunk,
+                        },
+                    )
+                    for chunk, embedd in zip(chunks, embeddings)
+                ],
+            )
+            return {
+                "data": vector_db_response,
+                "success": True,
+            }
+        else:
+            return {
+                "data": "Uploaded doc is not parsable",
+                "success": False,
+            }
 
     @staticmethod
     def parse_uploaded_docs(mime_type, file_bytes):
@@ -270,7 +279,7 @@ class File_Services:
                 vdb=vdb,
                 chunks=chunks,
             )
-            if store_embeddings_response.status == "completed":
+            if store_embeddings_response["success"]:
                 print("✅ Embeddings stored successfully!")
                 database_response = safe_supabase_database_action(
                     lambda: db.table("documents")
