@@ -88,9 +88,17 @@ async def upload_multiple_files(
     )
 
 
+class Delete_File(BaseModel):
+    doc_id: int
+
+
 @router.post("/delete/file")
-def delete_file(doc_id: int, db=Depends(database), user=Depends(verify_token)):
-    return File_Services.delete_file(doc_id=doc_id, db=db, user_id=user["id"])
+def delete_file(
+    doc: Delete_File,
+    db=Depends(database),
+    user=Depends(verify_token),
+):
+    return File_Services.delete_file(doc_id=doc.doc_id, db=db, user_id=user["id"])
 
 
 @router.post("/get/user/context")
@@ -113,6 +121,7 @@ def ask_question(
 ):
     response = File_Services.generate_from_context(
         vdb=vdb,
+        chat_space=data.chat_space,
         question=data.question,
         file_names=data.file_names,
         db=db,
@@ -124,6 +133,19 @@ def ask_question(
 @router.get("/get/user/history")
 def get_user_history(db=Depends(database), user=Depends(verify_token)):
     return File_Services.get_user_history(user_id=user["id"], db=db)
+
+
+class Get_User_Chats(BaseModel):
+    chat_space: str
+
+
+@router.post("/get/user/chats")
+def get_user_history(
+    chat: Get_User_Chats, db=Depends(database), user=Depends(verify_token)
+):
+    return File_Services.get_user_chat(
+        chat_space=chat.chat_space, user_id=user["id"], db=db
+    )
 
 
 @router.get("/get/user/docs")

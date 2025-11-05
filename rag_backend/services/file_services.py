@@ -3,6 +3,7 @@ import uuid
 from datetime import datetime
 from typing import Any, Callable, Dict, List
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastembed import TextEmbedding
 from parsers import *
@@ -11,10 +12,14 @@ from qdrant_client.http import models as qmodels
 from serilalizers import *
 from services.llm_service import *
 
+load_dotenv()
+
+QDRANT_URL = os.getenv("QDRANT_URL")
+QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
 
 qdrant_client = QdrantClient(
-    url="https://d03eed59-6786-4359-8a9d-2efdb3676ea0.eu-west-1-0.aws.cloud.qdrant.io:6333",
-    api_key="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIn0.TFrVnZRewqNfAFb6-tYCZs5ppAxZlfb4ba1_UUkE5zE",
+    url=QDRANT_URL,
+    api_key=QDRANT_API_KEY,
 )
 
 
@@ -80,14 +85,11 @@ class File_Services:
         return list(embeddings)[0].tolist()
 
     @staticmethod
-    def insert_question(db, question, user_id):
+    def insert_question(db, question, chat_space, user_id):
         response = safe_supabase_database_action(
             lambda: db.table("questions")
             .insert(
-                {
-                    "question": question,
-                    "user_id": user_id,
-                }
+                {"question": question, "user_id": user_id, "chat_space": chat_space}
             )
             .execute()
         )
@@ -209,9 +211,9 @@ class File_Services:
         return contexts
 
     @staticmethod
-    def generate_from_context(vdb, db, question, file_names, user_id):
+    def generate_from_context(vdb, db, chat_space, question, file_names, user_id):
         question_response = File_Services.insert_question(
-            db=db, question=question, user_id=user_id
+            db=db, chat_space=chat_space, question=question, user_id=user_id
         )
         if question_response["success"]:
             if file_names:
@@ -225,7 +227,7 @@ class File_Services:
                 context = question
             llm_response = LlmService.generate_blog(prompt=context)
             question_response = File_Services.insert_question(
-                db=db, question=question, user_id=user_id
+                db=db, chat_space=chat_space, question=question, user_id=user_id
             )
             response_insertion = File_Services.insert_response(
                 question_id=question_response["data"][0]["id"],
@@ -340,10 +342,10 @@ class File_Services:
 
     @staticmethod
     def delete_file(db, user_id, doc_id):
-        db_response = (
-            db.table("documents")
+        db_response = safe_supabase_storage_action(
+            lambda: db.table("documents")
             .delete()
-            .in_("id", doc_id)
+            .in_("id", [doc_id])
             .eq("user_id", user_id)
             .execute()
         )
@@ -359,6 +361,17 @@ class File_Services:
     def get_user_history(db, user_id):
         user_history = safe_supabase_database_action(
             lambda: db.table("questions").select("*").eq("user_id", user_id).execute()
+        )
+        return user_history
+
+    @staticmethod
+    def get_user_chat(db, chat_space, user_id):
+        user_history = safe_supabase_database_action(
+            lambda: db.table("questions")
+            .select("*")
+            .eq("chat_space", chat_space)
+            .eq("user_id", user_id)
+            .execute()
         )
         return user_history
 

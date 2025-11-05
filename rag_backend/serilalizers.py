@@ -17,7 +17,8 @@ class Input_Question_Serializer(BaseModel):
 
 class Generate_Content_Serializer(BaseModel):
     question: str
-    file_names: List[str] = None
+    file_names: Optional[List[str]] = None
+    chat_space: str
 
 
 class Output_Response_Serializer(BaseModel):
