@@ -101,6 +101,21 @@ def delete_file(
     return File_Services.delete_file(doc_id=doc.doc_id, db=db, user_id=user["id"])
 
 
+class Delete_Session(BaseModel):
+    chat_space: str
+
+
+@router.post("/delete/session")
+def delete_session(
+    chats: Delete_Session,
+    db=Depends(database),
+    user=Depends(verify_token),
+):
+    return File_Services.delete_session(
+        chat_space=chats.chat_space, db=db, user_id=user["id"]
+    )
+
+
 @router.post("/get/user/context")
 def get_user_context(
     question: str, file_names: List[str], vdb=Depends(vector_database)
@@ -125,7 +140,7 @@ def ask_question(
         question=data.question,
         file_names=data.file_names,
         db=db,
-        user_id=user.id,
+        user_id=user["id"],
     )
     return response
 

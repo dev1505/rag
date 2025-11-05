@@ -226,9 +226,6 @@ class File_Services:
             else:
                 context = question
             llm_response = LlmService.generate_blog(prompt=context)
-            question_response = File_Services.insert_question(
-                db=db, chat_space=chat_space, question=question, user_id=user_id
-            )
             response_insertion = File_Services.insert_response(
                 question_id=question_response["data"][0]["id"],
                 response=llm_response,
@@ -356,6 +353,17 @@ class File_Services:
         else:
             return db_response
         return storage_response
+
+    @staticmethod
+    def delete_session(db, user_id, chat_space):
+        db_response = safe_supabase_storage_action(
+            lambda: db.table("questions")
+            .delete()
+            .in_("chat_space", [chat_space])
+            .eq("user_id", user_id)
+            .execute()
+        )
+        return db_response
 
     @staticmethod
     def get_user_history(db, user_id):
