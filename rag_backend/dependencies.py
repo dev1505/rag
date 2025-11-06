@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 from fastapi import Depends, HTTPException, Request
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qmodels
+from qdrant_client.http.exceptions import UnexpectedResponse
 from supabase import Client, create_client
 
 load_dotenv()
@@ -26,12 +27,6 @@ def database():
     )
     return _db
 
-
-import os
-
-from qdrant_client import QdrantClient
-from qdrant_client import models as qmodels
-from qdrant_client.http.exceptions import UnexpectedResponse
 
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
 

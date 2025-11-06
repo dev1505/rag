@@ -1,10 +1,10 @@
 from contextlib import asynccontextmanager
 
-from dependencies import *
+from rag_backend.dependencies import *
 from fastapi import APIRouter, Depends, FastAPI, File, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from serilalizers import *
-from services.file_services import *
+from rag_backend.serilalizers import *
+from rag_backend.services.file_services import *
 from typing import List
 
 load_dotenv()
@@ -44,13 +44,15 @@ app.add_middleware(
 )
 
 
+class Get_Doc_Url(BaseModel):
+    id: int
+
+
 @router.post("/get/user/single/doc")
 def get_user_single_doc_public_path(
-    document_id: int, store=Depends(storage), db=Depends(database)
+    data: Get_Doc_Url, store=Depends(storage), db=Depends(database)
 ):
-    return File_Services.get_user_single_doc_public_path(
-        document_id=document_id, store=store, db=db
-    )
+    return File_Services.get_user_single_doc_public_path(id=data.id, store=store, db=db)
 
 
 @router.post("/get/user/mulitple/docs")

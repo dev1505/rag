@@ -1,16 +1,15 @@
 import os
 import uuid
-from datetime import datetime
 from typing import Any, Callable, Dict, List
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import File, HTTPException, UploadFile
 from fastembed import TextEmbedding
-from parsers import *
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qmodels
-from serilalizers import *
-from services.llm_service import *
+from rag_backend.parsers import *
+from rag_backend.serilalizers import *
+from rag_backend.services.llm_service import *
 
 load_dotenv()
 
@@ -106,17 +105,17 @@ class File_Services:
         return response
 
     @staticmethod
-    def get_user_single_doc_public_path(db, document_id, store):
+    def get_user_single_doc_public_path(db, id, store):
         database_response = safe_supabase_database_action(
-            lambda: db.table("documents").select("*").eq("id", document_id).execute()
+            lambda: db.table("documents").select("*").eq("id", id).execute()
         )
-        path = []
-        for docs in database_response["data"]:
-            storage_response = safe_supabase_storage_action(
-                lambda: store.storage.from_("user_docs").get_public_url(str(docs["id"]))
+        storage_response = safe_supabase_storage_action(
+            lambda: store.storage.from_("user_docs").create_signed_url(
+                str(database_response["data"][0]["id"]), 3600
             )
-            path.append(storage_response["data"]["result"])
-        return path
+        )
+        print(storage_response)
+        return storage_response
 
     @staticmethod
     def get_user_multiple_docs_public_path(db, user_id, store):
